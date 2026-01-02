@@ -1,11 +1,11 @@
 /**
- * 목적: 레이스 컨디션 재현
+ * 목적: synchronized 로 레이스 해결
  */
-public class RaceCondition {
+public class SyncTest {
 
     static class Counter {
         int value = 0;
-        void inc() { value++; } // non-atomic
+        synchronized void inc() { value++; }
     }
 
     public static void main(String[] args) throws Exception {
