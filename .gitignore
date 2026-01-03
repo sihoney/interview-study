@@ -1,0 +1,44 @@
+# ===== Java =====
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+
+# ===== JVM / GC / Heap Dumps =====
+*.log
+*.hprof
+
+# ===== Build =====
+/out/
+/target/
+/build/
+
+# ===== IDE: IntelliJ =====
+.idea/
+*.iml
+
+# ===== IDE: VSCode =====
+.vscode/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Temporary Files =====
+*.tmp
+*.swp
+*.bak
+
+# ===== Serialization Test Artifacts =====
+user.dat
+
+# ===== Coverage / Reports =====
+/coverage/
+/reports/
+
+# ===== Node / Others (혹시 사용 시) =====
+node_modules/
+
+# ===== Local Env =====
+.env
