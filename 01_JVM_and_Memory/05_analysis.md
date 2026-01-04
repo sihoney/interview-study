@@ -31,57 +31,68 @@ Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
 
 ## 🧪 GcTest 분석 (GC 동작)
 
-### 결과
+### 🧠 실행 환경
+- JVM: Java 17
+- GC: G1 GC
+- Heap: 128MB 고정 (-Xms128m -Xmx128m)
+
+### ♻️ 관찰 결과 요약
+
+#### 1. 객체 폭증 → Young GC 반복 발생
+
 ```
-PS C:\web-projects\interview-study\01_JVM_and_Memory\04_implementation> java -Xms128m -Xmx128m -Xlog:gc* GcTest                                                                                   
-[0.011s][info][gc] Using G1
-[0.014s][info][gc,init] Version: 17.0.17+10-LTS (release)
-[0.015s][info][gc,init] CPUs: 12 total, 12 available
-[0.015s][info][gc,init] Memory: 16067M
-[0.016s][info][gc,init] Large Page Support: Disabled
-[0.016s][info][gc,init] NUMA Support: Disabled
-[0.016s][info][gc,init] Compressed Oops: Enabled (32-bit)
-[0.016s][info][gc,init] Heap Region Size: 1M
-[0.016s][info][gc,init] Heap Min Capacity: 128M
-[0.017s][info][gc,init] Heap Initial Capacity: 128M
-[0.018s][info][gc,init] Heap Max Capacity: 128M
-[0.018s][info][gc,init] Pre-touch: Disabled
-[0.018s][info][gc,init] Parallel Workers: 10
-[0.018s][info][gc,init] Concurrent Workers: 3
-[0.019s][info][gc,init] Concurrent Refinement Workers: 10
-[0.020s][info][gc,init] Periodic GC: Disabled
-[0.028s][info][gc,metaspace] CDS archive(s) mapped at: [0x000001d48f000000-0x000001d48fbb0000-0x000001d48fbb0000), size 12255232, SharedBaseAddress: 0x000001d48f000000, ArchiveRelocationMode: 1.
-[0.029s][info][gc,metaspace] Compressed class space mapped at: 0x000001d490000000-0x000001d4d0000000, reserved size: 1073741824
-[0.030s][info][gc,metaspace] Narrow klass base: 0x000001d48f000000, Narrow klass shift: 0, Narrow klass range: 0x100000000
-Start GC test
-[0.065s][info][gc,start    ] GC(0) Pause Young (Normal) (G1 Evacuation Pause)
-[0.066s][info][gc,task     ] GC(0) Using 3 workers of 10 for evacuation
-[0.071s][info][gc,phases   ] GC(0)   Pre Evacuate Collection Set: 0.1ms
-[0.072s][info][gc,phases   ] GC(0)   Merge Heap Roots: 0.1ms
-[0.072s][info][gc,phases   ] GC(0)   Evacuate Collection Set: 4.0ms
-[0.073s][info][gc,phases   ] GC(0)   Post Evacuate Collection Set: 0.7ms
-[0.074s][info][gc,phases   ] GC(0)   Other: 0.8ms
-[0.075s][info][gc,heap     ] GC(0) Eden regions: 23->0(14)
-[0.075s][info][gc,heap     ] GC(0) Survivor regions: 0->3(3)
-[0.076s][info][gc,heap     ] GC(0) Old regions: 0->19
-[0.077s][info][gc,heap     ] GC(0) Archive regions: 0->0
-[0.078s][info][gc,heap     ] GC(0) Humongous regions: 0->0
-[0.079s][info][gc,metaspace] GC(0) Metaspace: 163K(384K)->163K(384K) NonClass: 155K(256K)->155K(256K) Class: 8K(128K)->8K(128K)
-[0.079s][info][gc          ] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 22M->21M(128M) 14.087ms
-[0.080s][info][gc,cpu      ] GC(0) User=0.02s Sys=0.03s Real=0.01s
-[0.082s][info][gc,start    ] GC(1) Pause Young (Normal) (G1 Evacuation Pause)
-[0.083s][info][gc,task     ] GC(1) Using 3 workers of 10 for evacuation
-[0.088s][info][gc,phases   ] GC(1)   Pre Evacuate Collection Set: 0.1ms
-[0.088s][info][gc,phases   ] GC(1)   Merge Heap Roots: 0.1ms
-[0.089s][info][gc,phases   ] GC(1)   Evacuate Collection Set: 3.2ms
-[0.090s][info][gc,phases   ] GC(1)   Post Evacuate Collection Set: 0.6ms
-[0.090s][info][gc,phases   ] GC(1)   Other: 1.5ms
-[0.091s][info][gc,heap     ] GC(1) Eden regions: 14->0(24)
-[0.091s][info][gc,heap     ] GC(1) Survivor regions: 3->3(3)
-[0.092s][info][gc,heap     ] GC(1) Old regions: 19->33
-[0.093s][info][gc,heap     ] GC(1) Archive regions: 0->0
-[0.093s][info][gc,heap     ] GC(1) Humongous regions: 0->0
-[0.093s][info][gc,metaspace] GC(1) Metaspace: 163K(384K)->163K(384K) NonClass: 155K(256K)->155K(256K) Class: 8K(128K)->8K(128K)
+GC(0) Pause Young
+Eden: 23 → 0
+Survivor: 0 → 3
+Old: 0 → 19
+STW ≈ 8ms
+```
+
+- Eden이 빠르게 가득 차면서 **Young GC** 반복
+- GC 중 **Stop-The-World** 발생
+
+#### 2. 객체 생존 → Old 영역 급속 증가
+
+```
+Old: 0 → 19 → 32 → 55 → 72 → 85 → 94 → 101 → 106 → 111 → 116
+```
+
+- 다량의 객체가 장기 생존
+- **Old 영역 팽창 → Full GC 위험 증가**
+
+#### 3. GC는 메모리를 회수하지만 서버는 계속 멈춤
+
+```
+Pause Young ≈ 5~9ms
+```
+
+- 짧은 STW라도 **빈번하면 체감 성능 급락**
+
+#### 4. Concurrent Mark 시작 → 본격 GC 사이클 진입
+
+```
+Concurrent Mark Cycle
+Pause Remark: 116M → 56M
+```
+
+- G1이 Old 영역 관리 단계 진입
+- 일부 메모리 회수 성공
+- GC 비용 상승
+
+### 🧨 전체 구조 요약
+
+```
+객체 대량 생성
+↓
+Eden 포화
+↓
+Young GC + STW 반복
+↓
+객체 대량 Old 승격
+↓
+GC 압박 증가
+↓
+서버 응답 지연 및 장애 위험
 ```
 
 ### 관찰
@@ -94,6 +105,11 @@ Start GC test
 
 ### 면접 연결
 > 트래픽 증가 → 객체 생성 폭증 → GC 압박 → 서버 장애
+
+### 🎤 면접용 핵심 정리
+
+> "제한된 힙 환경에서 객체를 반복 생성했더니 Young GC가 매우 자주 발생했고, 그때마다 STW가 발생했습니다.  
+> 살아남은 객체들이 빠르게 Old 영역으로 승격되면서 GC 압박이 증가했고, 이 구조가 실제 서버 응답 지연과 장애로 이어질 수 있음을 실험으로 확인했습니다."
 
 ---
 
@@ -179,8 +195,48 @@ Done.
 - finalize는 신뢰 불가
 - 실무에서 사용 금지 수준
 
+### try-with-resources
+
+- try-with-resources는 컴파일 타임에 자동으로 close() 호출 코드를 생성
+
+```
+try (FileInputStream in = new FileInputStream("data.txt")) {
+    // 작업
+}
+```
+
+컴파일되면 사실상 이렇게 바뀐다:
+
+```
+FileInputStream in = new FileInputStream("data.txt");
+try {
+    // 작업
+} finally {
+    if (in != null) in.close();
+}
+```
+
+- close()는 즉시 실행된다. GC와 아무 상관이 없다.
+
+### 실무 패턴
+
+```
+try (Connection conn = dataSource.getConnection();
+     PreparedStatement ps = conn.prepareStatement(sql);
+     ResultSet rs = ps.executeQuery()) {
+
+    // DB 작업
+
+} catch (SQLException e) {
+    // 예외 처리
+}
+```
+
+- Connection, PreparedStatement, ResultSet -> 전부 AutoCloseable 구현체
+- try 블록 종료 시 역순으로 close() 자동 호출
+
 ### 면접 연결
-> finalize는 비결정적이며, 자원 관리는 try-with-resources로 처리해야 한다.
+> finalize()는 호출 시점이 전혀 보장되지 않아 실무에서 사용하면 안 됩니다. 대신 AutoCloseable과 try-with-resources를 사용해 자원을 결정적으로 회수해야 합니다.
 
 ---
 
